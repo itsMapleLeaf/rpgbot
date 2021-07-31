@@ -21,14 +21,17 @@ await discorddeno.startBot({
 
     async interactionCreate(interaction) {
       if (
-        interaction.type === discorddeno.InteractionTypes.ApplicationCommand
+        interaction.type === discorddeno.InteractionTypes.ApplicationCommand &&
+        interaction.member
       ) {
         const commandNotFoundResponse: discorddeno.InteractionApplicationCommandCallbackData =
           {
             content: `Oops, something went wrong. Couldn't find a command to run for that one! Try again.`,
           }
 
-        const response = await getCommandInteractionResponseData(interaction)
+        const response = await getCommandInteractionResponseData(interaction, {
+          member: interaction.member,
+        })
 
         discorddeno.sendInteractionResponse(interaction.id, interaction.token, {
           type: discorddeno.InteractionResponseTypes.ChannelMessageWithSource,

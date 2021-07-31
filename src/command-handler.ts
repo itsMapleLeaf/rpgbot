@@ -9,7 +9,13 @@ type Command = {
 type CommandConfig = {
   name: string
   description: string
-  run: () => MaybePromise<discorddeno.InteractionApplicationCommandCallbackData>
+  run: (
+    context: CommandContext
+  ) => MaybePromise<discorddeno.InteractionApplicationCommandCallbackData>
+}
+
+type CommandContext = {
+  member: discorddeno.InteractionGuildMember
 }
 
 const commands: Command[] = []
@@ -31,8 +37,11 @@ export async function createSlashCommands(guildId: bigint) {
 }
 
 export async function getCommandInteractionResponseData(
-  data: discorddeno.SlashCommandInteraction
+  interaction: discorddeno.SlashCommandInteraction,
+  context: CommandContext
 ) {
-  const command = commands.find((command) => command.appCommand?.id === data.id)
-  return await command?.config.run()
+  const command = commands.find(
+    (command) => command.appCommand?.id === interaction.data?.id
+  )
+  return await command?.config.run(context)
 }
