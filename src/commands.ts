@@ -30,7 +30,7 @@ export function addCommands(manager: CommandManager) {
       if (!location) {
         return createInteractionResponseDataBuilder()
           .setContent(
-            `You ain't even in the game, yet! Run /${startCommand.name} first.`,
+            `You ain't even in the game yet! Run /${startCommand.name} first.`,
           )
           .build()
       }
