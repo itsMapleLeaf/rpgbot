@@ -43,6 +43,16 @@ export async function createSlashCommands(guildId: bigint) {
   }
 }
 
+export async function deleteUnknownCommands(guildId: bigint) {
+  const commandNames = new Set(commands.map(({ config }) => config.name))
+  for (const [, command] of await discorddeno.getSlashCommands(guildId)) {
+    if (commandNames.has(command.name)) continue
+
+    logger.info(`Removing unknown command "${command.name}"`)
+    await discorddeno.deleteSlashCommand(command.id, guildId)
+  }
+}
+
 export async function getCommandInteractionResponseData(
   interaction: discorddeno.SlashCommandInteraction,
   context: CommandContext,

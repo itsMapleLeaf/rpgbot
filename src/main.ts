@@ -1,7 +1,11 @@
 import * as discorddeno from "https://deno.land/x/discordeno@12.0.1/mod.ts"
 import { env } from "./env.ts"
 import "./commands.ts"
-import { createSlashCommands, getCommandInteractionResponseData } from "./command-handler.ts"
+import {
+  createSlashCommands,
+  deleteUnknownCommands,
+  getCommandInteractionResponseData,
+} from "./command-handler.ts"
 import { logger } from "./logger.ts"
 
 await discorddeno.startBot({
@@ -15,6 +19,7 @@ await discorddeno.startBot({
     async guildAvailable(guild) {
       logger.info(`Joined guild "${guild.name}"`)
       await createSlashCommands(guild.id)
+      await deleteUnknownCommands(guild.id)
     },
 
     async interactionCreate(interaction) {
