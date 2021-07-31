@@ -1,10 +1,10 @@
 import {
   Embed,
   EmbedAuthor,
-  EmbedImage,
   EmbedFooter,
+  EmbedImage,
   EmbedThumbnail,
-} from "https://deno.land/x/discordeno@12.0.1/mod.ts"
+} from "https://deno.land/x/discordeno@12.0.1/mod"
 
 export type EmbedBuilder = ReturnType<typeof createEmbedBuilder>
 
@@ -23,7 +23,10 @@ export function createEmbedBuilder(embed: Embed = {}) {
       return createEmbedBuilder({ ...embed, author: { ...embed.author, name } })
     },
     setAuthorIcon(url: string) {
-      return createEmbedBuilder({ ...embed, author: { ...embed.author, iconUrl: url } })
+      return createEmbedBuilder({
+        ...embed,
+        author: { ...embed.author, iconUrl: url },
+      })
     },
     setColor(color: number) {
       return createEmbedBuilder({ ...embed, color })

@@ -1,64 +1,66 @@
-import * as discorddeno from "https://deno.land/x/discordeno@12.0.1/mod.ts"
-import { env } from "./env.ts"
-import "./commands.ts"
-import {
-  createSlashCommands,
-  deleteUnknownCommands,
-  getCommandInteractionResponseData,
-} from "./command-handler.ts"
-import { logger } from "./logger.ts"
-import { db } from "./db.ts"
+import { Guild, GuildMember } from "discord.js"
+import "dotenv/config.js"
+import { runBot } from "./bot"
+import { createCommandManager } from "./command-handler"
+import { addCommands } from "./commands"
+import { toError } from "./common"
+import { logger } from "./logger"
 
-await discorddeno.startBot({
-  token: env.require("BOT_TOKEN"),
-  intents: ["Guilds"],
-  eventHandlers: {
+async function main() {
+  const commandManager = createCommandManager()
+  addCommands(commandManager)
+
+  const client = await runBot({
     async ready() {
       logger.info("Ready")
 
-      logger.info("Syncing database...")
-      await db.sync()
+      for (const guild of client.guilds.cache.values()) {
+        await handleGuildAvailable(guild)
+      }
     },
 
-    async guildAvailable(guild) {
-      logger.info(`Joined guild "${guild.name}"`)
-      await createSlashCommands(guild.id)
-      await deleteUnknownCommands(guild.id)
+    async guildCreate(guild) {
+      await handleGuildAvailable(guild)
     },
 
     async interactionCreate(interaction) {
-      const reply = (args: string | discorddeno.InteractionApplicationCommandCallbackData) => {
-        discorddeno.sendInteractionResponse(interaction.id, interaction.token, {
-          type: discorddeno.InteractionResponseTypes.ChannelMessageWithSource,
-          data: typeof args === "string" ? { content: args } : args,
+      if (!interaction.isCommand()) {
+        return // Ignore non-commands
+      }
+
+      if (!interaction.inGuild()) {
+        return interaction.reply("Sorry, can only use this in guilds for now!")
+      }
+
+      try {
+        const reply = await commandManager.getInteractionReply(interaction, {
+          member: interaction.member as GuildMember,
         })
-      }
+        if (!reply) {
+          logger.warn(`No reply for ${interaction.command?.name}`)
+          return interaction.reply(
+            "Huh, don't know what to do with that one. Something went wrong. Wait a few and try again.",
+          )
+        }
 
-      if (!interaction.member) {
-        reply("Sorry, can't run this in DMs! (yet?)")
-        return
+        return interaction.reply(reply)
+      } catch (error) {
+        await interaction.reply("Oops, something went wrong. lol")
+        logger.error(toError(error).stack || toError(error).message)
       }
-
-      if (interaction.type !== discorddeno.InteractionTypes.ApplicationCommand) {
-        // handle other interaction types later
-        return
-      }
-
-      const response = await getCommandInteractionResponseData(interaction, {
-        member: interaction.member,
-      })
-      if (!response) {
-        logger.error(`No response for interaction`)
-        logger.error(JSON.stringify(interaction, null, 2))
-        reply(
-          "Looks like this command wasn't registered yet. " +
-            "Or somethin' went reeeally wrong. " +
-            "Wait a few and try again.",
-        )
-        return
-      }
-
-      reply(response)
     },
-  },
+  })
+
+  async function handleGuildAvailable(guild: Guild) {
+    logger.info(`Guild ${guild.id} available`)
+    await commandManager.syncSlashCommands(
+      client.application!.commands,
+      guild.id,
+    )
+  }
+}
+
+main().catch((error) => {
+  const { stack, message } = toError(error)
+  logger.error(`Failed to start: ${stack || message}`)
 })

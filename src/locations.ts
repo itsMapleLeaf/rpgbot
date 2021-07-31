@@ -1,4 +1,4 @@
-import { NonEmptyArray, ValueOf } from "./types.ts"
+import { NonEmptyArray, ValueOf } from "./types"
 
 export type LocationId = ValueOf<typeof locationIds>
 

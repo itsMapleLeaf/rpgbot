@@ -1,3 +1,9 @@
-import GLogger from "https://deno.land/x/glogger@2.1.0/mod.ts"
+import createLogger from "pino"
 
-export const logger = new GLogger("ScoutBot")
+export const logger = createLogger({
+  prettyPrint: {
+    colorize: true,
+    ignore: "hostname,pid",
+    translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
+  },
+})
