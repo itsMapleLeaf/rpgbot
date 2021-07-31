@@ -29,9 +29,7 @@ export function addCommands(manager: CommandManager) {
       const location = localStorage.getItem(`player:${member.user.id}:location`)
       if (!location) {
         return createInteractionResponseDataBuilder()
-          .setContent(
-            `You ain't even in the game yet! Run /${startCommand.name} first.`,
-          )
+          .setContent(`You ain't even in the game yet! Run /${startCommand.name} first.`)
           .build()
       }
 

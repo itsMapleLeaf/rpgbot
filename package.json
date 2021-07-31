@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "dev": "nodemon -x node -r esbuild-register -e ts src/main.ts"
+    "dev": "nodemon -x node -r esbuild-register -e ts src/main.ts",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "discord.js": "13.0.0-dev.t1627732975.331a9d3",
@@ -14,6 +15,7 @@
     "@types/pino": "6.3.11",
     "@types/pino-pretty": "4.7.1",
     "nodemon": "2.0.12",
+    "prettier": "2.3.2",
     "typescript": "4.4.0-beta"
   }
 }

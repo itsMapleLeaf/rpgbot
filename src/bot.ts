@@ -3,9 +3,7 @@ import { toError } from "./common"
 import { logger } from "./logger"
 
 type ClientEventMap = {
-  [EventName in keyof ClientEvents]?: (
-    ...args: ClientEvents[EventName]
-  ) => void | Promise<unknown>
+  [EventName in keyof ClientEvents]?: (...args: ClientEvents[EventName]) => void | Promise<unknown>
 }
 
 export async function runBot(events: ClientEventMap) {
@@ -19,9 +17,7 @@ export async function runBot(events: ClientEventMap) {
         await callback(...(args as never[]))
       } catch (error) {
         const { message, stack } = toError(error)
-        logger.error(
-          `An error occurred running ${eventName} ${stack || message}`,
-        )
+        logger.error(`An error occurred running ${eventName} ${stack || message}`)
       }
     })
   }

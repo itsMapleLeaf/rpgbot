@@ -42,23 +42,20 @@ export function createCommandManager() {
       commandManager: ApplicationCommandManager,
       guildId: Snowflake,
     ): Promise<void> {
-      // create/update new commands
-      for (const command of commands) {
-        logger.info(`Adding command "${command.config.name}"`)
-        command.appCommand = await commandManager.create(
-          command.config,
-          guildId,
-        )
-      }
-
       // remove unconfigured commands
       const existingCommands = await commandManager.fetch(undefined, {
         guildId,
       })
+
+      for (const command of commands) {
+        if (existingCommands.some((appCommand) => appCommand.name === command.config.name)) continue
+
+        logger.info(`Adding command "${command.config.name}"`)
+        command.appCommand = await commandManager.create(command.config, guildId)
+      }
+
       for (const [, existingCommand] of existingCommands) {
-        const configuredCommand = commands.find(
-          (c) => c.config.name === existingCommand.name,
-        )
+        const configuredCommand = commands.find((c) => c.config.name === existingCommand.name)
         if (configuredCommand) continue
 
         logger.info(`Removing command "${existingCommand.name}"`)
@@ -70,9 +67,7 @@ export function createCommandManager() {
       interaction: CommandInteraction,
       context: CommandContext,
     ): Promise<CommandReply | undefined> {
-      const command = commands.find(
-        (c) => c.config.name === interaction.command?.name,
-      )
+      const command = commands.find((c) => c.config.name === interaction.command?.name)
       return command?.config.run(context)
     },
   }

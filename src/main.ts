@@ -53,10 +53,7 @@ async function main() {
 
   async function handleGuildAvailable(guild: Guild) {
     logger.info(`Guild ${guild.id} available`)
-    await commandManager.syncSlashCommands(
-      client.application!.commands,
-      guild.id,
-    )
+    await commandManager.syncSlashCommands(client.application!.commands, guild.id)
   }
 }
 
