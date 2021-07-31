@@ -5,6 +5,13 @@ const startCommand = addCommand({
   name: "start",
   description: "Enter the game",
   run({ member }) {
+    const location = localStorage.getItem(`player:${member.user.id}:location`)
+    if (location) {
+      return createInteractionResponseDataBuilder()
+        .setContent(`You're already in the game!`)
+        .build()
+    }
+
     localStorage.setItem(`player:${member.user.id}:location`, "The Tavern")
     return createInteractionResponseDataBuilder()
       .setContent(`Done! Welcome to the game, ${member.nick || member.user.username}!`)
