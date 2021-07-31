@@ -22,8 +22,9 @@ type CommandContext = {
 
 const commands: Command[] = []
 
-export function addCommand(config: CommandConfig) {
+export function addCommand(config: CommandConfig): CommandConfig {
   commands.push({ config })
+  return config
 }
 
 export async function createSlashCommands(guildId: bigint) {

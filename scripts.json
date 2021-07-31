@@ -2,11 +2,11 @@
   "$schema": "https://deno.land/x/denon@2.4.7/schema.json",
   "scripts": {
     "dev": {
-      "cmd": "deno run --allow-read --allow-net --allow-env --unstable src/main.ts",
+      "cmd": "deno run --allow-read --allow-net --allow-env --unstable --location https://scoutbot.game src/main.ts",
       "desc": "run the app (development)"
     },
     "start": {
-      "cmd": "deno run --allow-read --allow-net --allow-env src/main.ts",
+      "cmd": "deno run --allow-read --allow-net --allow-env --unstable --location https://scoutbot.game src/main.ts",
       "desc": "run the app",
       "watch": false
     },
