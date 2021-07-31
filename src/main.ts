@@ -7,13 +7,17 @@ import {
   getCommandInteractionResponseData,
 } from "./command-handler.ts"
 import { logger } from "./logger.ts"
+import { db } from "./db.ts"
 
 await discorddeno.startBot({
   token: env.require("BOT_TOKEN"),
   intents: ["Guilds"],
   eventHandlers: {
-    ready() {
+    async ready() {
       logger.info("Ready")
+
+      logger.info("Syncing database...")
+      await db.sync()
     },
 
     async guildAvailable(guild) {
