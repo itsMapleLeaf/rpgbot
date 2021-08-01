@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "dev": "nodemon -x node -r esbuild-register -e ts src/main.ts",
+    "dev": "nodemon -e ts -x node -r esbuild-register src/main.ts",
+    "start": "node -r esbuild-register src/main.ts",
     "format": "prettier --write .",
     "prepare": "prisma generate"
   },
