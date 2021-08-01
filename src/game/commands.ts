@@ -1,9 +1,19 @@
 import { MessageSelectOptionData } from "discord.js"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
-import { addReply, updateReply, waitForSelect } from "../discord/command-handler-action"
+import {
+  addReply,
+  updateReply,
+  waitForButton,
+  waitForSelect,
+} from "../discord/command-handler-action"
 import { buildEmbed } from "../discord/embed-builder"
-import { actionRowComponent, embedComponent, selectMenuComponent } from "../discord/reply-component"
+import {
+  actionRowComponent,
+  buttonComponent,
+  embedComponent,
+  selectMenuComponent,
+} from "../discord/reply-component"
 import { getInitialLocation, getInitialLocationId, getLocation, Location } from "./locations"
 import { ensurePlayer } from "./player"
 
@@ -78,12 +88,31 @@ export const commands: CommandHandler[] = [
       yield addReply(
         `Where do you want to go?`,
         actionRowComponent(selectMenuComponent({ customId: selectId, options })),
+        actionRowComponent(
+          buttonComponent({ customId: "nothing", label: "random button", style: "PRIMARY" }),
+        ),
       )
 
       while (!newLocation) {
-        yield waitForSelect(selectId, ([value]) => {
-          if (value) newLocation = getLocation(value)
-        })
+        let pressedButton = false
+
+        yield [
+          waitForSelect(selectId, ([value]) => {
+            if (value) newLocation = getLocation(value)
+          }),
+          waitForButton("nothing", () => {
+            pressedButton = true
+          }),
+        ]
+
+        if (pressedButton) {
+          console.log("pressed button?")
+          yield updateReply(
+            `Stop wasting my time with a dumb button, dammit.`,
+            actionRowComponent(selectMenuComponent({ customId: selectId, options })),
+          )
+          continue
+        }
 
         if (!newLocation) {
           yield updateReply(

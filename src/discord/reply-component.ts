@@ -1,6 +1,8 @@
 import {
+  EmojiResolvable,
   InteractionReplyOptions,
   MessageActionRowOptions,
+  MessageButtonStyle,
   MessageEmbedOptions,
   MessageSelectMenuOptions,
   MessageSelectOptionData,
@@ -13,7 +15,17 @@ export type ReplyComponent =
   | { type: "embed"; embed: MessageEmbedOptions }
   | { type: "actionRow"; children: ActionRowChild[] }
 
-export type ActionRowChild = {
+export type ActionRowChild = SelectMenuComponent | ButtonComponent
+
+type ButtonComponent = {
+  type: "button"
+  customId: string
+  style: MessageButtonStyle
+  label?: string
+  emoji?: EmojiResolvable
+}
+
+type SelectMenuComponent = {
   type: "selectMenu"
   customId: string
   options: MessageSelectOptionData[]
@@ -30,14 +42,15 @@ export function actionRowComponent(...children: ActionRowChild[]): ReplyComponen
   }
 }
 
+export function buttonComponent(options: Omit<ButtonComponent, "type">): ButtonComponent {
+  return { type: "button", ...options }
+}
+
 export function selectMenuComponent(options: {
   customId: string
   options: MessageSelectOptionData[]
-}): ActionRowChild {
-  return {
-    type: "selectMenu",
-    ...options,
-  }
+}): SelectMenuComponent {
+  return { type: "selectMenu", ...options }
 }
 
 export function createReplyOptions(components: ReplyComponent[]): InteractionReplyOptions {
@@ -55,16 +68,13 @@ export function createReplyOptions(components: ReplyComponent[]): InteractionRep
       if (component.type !== "actionRow") return
       return {
         type: "ACTION_ROW",
-        components: component.children
-          .map<MessageSelectMenuOptions | Falsy>((c) => {
-            if (c.type !== "selectMenu") return
-            return {
-              type: "SELECT_MENU",
-              customId: c.customId,
-              options: c.options,
-            }
-          })
-          .filter(isTruthy),
+        components: component.children.map<MessageSelectMenuOptions>((child) => {
+          if (child.type === "selectMenu") {
+            return { ...child, type: "SELECT_MENU" }
+          } else {
+            return { ...child, type: "BUTTON" }
+          }
+        }),
       }
     })
     .filter(isTruthy)

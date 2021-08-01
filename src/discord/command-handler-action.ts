@@ -4,6 +4,7 @@ export type CommandHandlerAction =
   | { type: "add"; components: ReplyComponent[] }
   | { type: "update"; components: ReplyComponent[] }
   | { type: "selectResponse"; customId: string; callback: (values: string[]) => void }
+  | { type: "buttonResponse"; customId: string; callback: () => void }
 
 export function addReply(...components: (string | ReplyComponent)[]): CommandHandlerAction {
   return {
@@ -28,4 +29,8 @@ export function waitForSelect(
   callback: (values: string[]) => void,
 ): CommandHandlerAction {
   return { type: "selectResponse", customId, callback }
+}
+
+export function waitForButton(customId: string, callback: () => void): CommandHandlerAction {
+  return { type: "buttonResponse", customId, callback }
 }

@@ -4,19 +4,18 @@ import {
   CommandInteraction,
   GuildMember,
   IntentsString,
-  SelectMenuInteraction,
+  MessageComponentInteraction,
   Snowflake,
 } from "discord.js"
 import { logger } from "../logger"
 import { bindClientEvents } from "./client-events"
-import { CommandHandler } from "./command-handler"
-import { CommandHandlerAction } from "./command-handler-action"
+import { CommandHandler, CommandHandlerIterator } from "./command-handler"
 import { createReplyOptions } from "./reply-component"
 
-const pendingSelectResponses = new Set<{
+const pendingResponses = new Set<{
   customId: string
   callback: (values: string[]) => void
-  iterator: AsyncIterableIterator<CommandHandlerAction>
+  iterator: CommandHandlerIterator
 }>()
 
 async function syncCommands(bot: Client, commands: CommandHandler[], guildId: Snowflake) {
@@ -35,41 +34,41 @@ async function syncCommands(bot: Client, commands: CommandHandler[], guildId: Sn
 }
 
 async function resumeCommandIterator(
-  iterator: AsyncIterableIterator<CommandHandlerAction>,
-  interaction: CommandInteraction | SelectMenuInteraction,
+  iterator: CommandHandlerIterator,
+  interaction: CommandInteraction | MessageComponentInteraction,
 ) {
-  while (true) {
+  let running = true
+  while (running) {
     const result = await iterator.next()
     if (result.done) break
 
-    const action = result.value
-
-    if (action.type === "add") {
-      const options = createReplyOptions(action.components)
-      if (interaction.replied) {
-        await interaction.followUp(options)
-      } else {
-        await interaction.reply(options)
+    const actions = [result.value].flat()
+    for (const action of actions) {
+      if (action.type === "add") {
+        const options = createReplyOptions(action.components)
+        if (interaction.replied) {
+          await interaction.followUp(options)
+        } else {
+          await interaction.reply(options)
+        }
+        continue
       }
-      continue
-    }
 
-    if (action.type === "update") {
-      const options = createReplyOptions(action.components)
-      if (interaction.isSelectMenu()) {
-        await interaction.update(options)
-      } else {
-        await interaction.reply(options)
+      if (action.type === "update") {
+        const options = createReplyOptions(action.components)
+        if (interaction.isMessageComponent()) {
+          await interaction.update(options)
+        } else {
+          await interaction.reply(options)
+        }
+        continue
       }
-      continue
-    }
 
-    if (action.type === "selectResponse") {
-      pendingSelectResponses.add({
-        iterator,
-        ...action,
-      })
-      break
+      if (action.type === "selectResponse" || action.type === "buttonResponse") {
+        pendingResponses.add({ iterator, ...action })
+        running = false
+        continue
+      }
     }
   }
 }
@@ -110,18 +109,18 @@ export async function runBot({
         if (!handler) return
 
         const iterator = handler.run({ member: interaction.member as GuildMember })
-        resumeCommandIterator(iterator, interaction)
+        await resumeCommandIterator(iterator, interaction)
       }
 
-      if (interaction.isSelectMenu()) {
-        const pending = [...pendingSelectResponses].find(
-          ({ customId }) => customId === interaction.customId,
-        )
+      if (interaction.isMessageComponent()) {
+        const responses = [...pendingResponses]
+        pendingResponses.clear()
 
-        if (pending) {
-          pending.callback(interaction.values)
-          resumeCommandIterator(pending.iterator, interaction)
-          pendingSelectResponses.delete(pending)
+        for (const pending of responses) {
+          if (pending.customId === interaction.customId) {
+            pending.callback(interaction.isSelectMenu() ? interaction.values : [])
+            await resumeCommandIterator(pending.iterator, interaction)
+          }
         }
       }
     },
