@@ -8,7 +8,6 @@ import {
   Snowflake,
 } from "discord.js"
 import { logger } from "./logger"
-import { MaybePromise } from "./types"
 
 type Command = {
   config: CommandConfig
@@ -24,7 +23,7 @@ type CommandContext = {
 type CommandConfig = {
   name: string
   description: string
-  run: (context: CommandContext) => MaybePromise<CommandReply>
+  run: (context: CommandContext) => AsyncGenerator<CommandReply>
 }
 
 export type CommandManager = ReturnType<typeof createCommandManager>
@@ -63,12 +62,16 @@ export function createCommandManager() {
       }
     },
 
-    async getInteractionReply(
+    async *getInteractionReplies(
       interaction: CommandInteraction,
       context: CommandContext,
-    ): Promise<CommandReply | undefined> {
+    ): AsyncGenerator<CommandReply> | undefined {
       const command = commands.find((c) => c.config.name === interaction.command?.name)
-      return command?.config.run(context)
+      if (!command) return undefined
+
+      for await (const reply of command.config.run(context)) {
+        yield reply
+      }
     },
   }
 }

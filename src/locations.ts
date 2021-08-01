@@ -1,3 +1,4 @@
+import { hasKey } from "./common"
 import { NonEmptyArray, ValueOf } from "./types"
 
 export type LocationId = ValueOf<typeof locationIds>
@@ -16,8 +17,8 @@ export function getInitialLocation(): Location {
   return locationMap[locationIds[0]]
 }
 
-export function getLocation(locationId: LocationId): Location {
-  return locationMap[locationId]
+export function getLocation(locationId: string): Location | undefined {
+  return hasKey(locationMap, locationId) ? locationMap[locationId] : undefined
 }
 
 export function getAllLocations(): Location[] {

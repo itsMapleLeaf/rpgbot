@@ -5,3 +5,16 @@ export function raise(error: string | Error): never {
 export function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
+
+export function getErrorInfo(error: unknown): string {
+  const { stack, message } = toError(error)
+  return stack || message
+}
+
+export function includes<Value>(array: readonly Value[], value: unknown): value is Value {
+  return array.includes(value as Value)
+}
+
+export function hasKey<Subject>(object: Subject, key: PropertyKey): key is keyof Subject {
+  return key in object
+}

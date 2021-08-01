@@ -4,6 +4,7 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "strict": true,
-    "lib": ["es2020"]
+    "lib": ["es2020"],
+    "useUnknownInCatchVariables": true
   }
 }
