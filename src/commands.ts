@@ -1,5 +1,5 @@
-import { CommandManager } from "./command-handler"
-import { createInteractionResponseDataBuilder } from "./interaction-response-data-builder"
+import { CommandManager } from "./command-manager"
+import { createEmbedBuilder } from "./embed-builder"
 
 const storage = new Map<string, string>()
 const localStorage = {
@@ -28,20 +28,19 @@ export function addCommands(manager: CommandManager) {
     run({ member }) {
       const location = localStorage.getItem(`player:${member.user.id}:location`)
       if (!location) {
-        return createInteractionResponseDataBuilder()
-          .setContent(`You ain't even in the game yet! Run /${startCommand.name} first.`)
-          .build()
+        return `You ain't even in the game yet! Run /${startCommand.name} first.`
       }
 
-      return createInteractionResponseDataBuilder()
-        .setContent(`Here's where you're at, partner!`)
-        .addEmbed((embed) =>
-          embed
+      return {
+        content: `Here's where you're at!`,
+        embeds: [
+          createEmbedBuilder()
             .setAuthorName(member.displayName)
             .setAuthorIcon(member.user.avatarURL() ?? "")
-            .addField("Location", location),
-        )
-        .build()
+            .addField("Location", location)
+            .build(),
+        ],
+      }
     },
   })
 }

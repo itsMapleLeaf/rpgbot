@@ -1,7 +1,7 @@
 import { Guild, GuildMember } from "discord.js"
 import "dotenv/config.js"
 import { runBot } from "./bot"
-import { createCommandManager } from "./command-handler"
+import { createCommandManager } from "./command-manager"
 import { addCommands } from "./commands"
 import { toError } from "./common"
 import { logger } from "./logger"
