@@ -1,5 +1,4 @@
 import {
-  MessageEmbed,
   MessageEmbedAuthor,
   MessageEmbedFooter,
   MessageEmbedImage,
@@ -57,7 +56,7 @@ export function buildEmbed(embedOptions: MessageEmbedOptions = {}) {
       })
     },
     finish() {
-      return new MessageEmbed(embedOptions)
+      return embedOptions
     },
   }
 }

@@ -3,44 +3,99 @@ import {
   CommandInteraction,
   GuildMember,
   Intents,
+  InteractionReplyOptions,
+  MessageActionRowOptions,
+  MessageEmbedOptions,
+  MessageSelectMenuOptions,
+  MessageSelectOptionData,
   SelectMenuInteraction,
   Snowflake,
 } from "discord.js"
 import "dotenv/config.js"
 import { bindClientEvents } from "./client-events"
-import { getErrorInfo } from "./common"
+import { getErrorInfo, isTruthy } from "./common"
 import { db } from "./db"
 import { buildEmbed } from "./embed-builder"
-import { actionRow, selectMenu } from "./interaction"
-import { getInitialLocation, getInitialLocationId, getLocation } from "./locations"
+import { getInitialLocation, getInitialLocationId, getLocation, Location } from "./locations"
 import { logger } from "./logger"
 import { ensurePlayer } from "./player"
+import { Falsy } from "./types"
 
 type CommandHandler = {
   name: string
   description: string
-  run: (context: {
-    interaction: CommandInteraction
-    member: GuildMember
-  }) => void | Promise<unknown>
+  run: (context: { member: GuildMember }) => AsyncIterableIterator<CommandHandlerAction>
 }
 
-type SelectHandler = {
+type CommandHandlerAction =
+  | { type: "add"; components: InteractionComponent[] }
+  | { type: "update"; components: InteractionComponent[] }
+  | { type: "selectResponse"; customId: string; callback: (values: string[]) => void }
+
+type InteractionComponent =
+  | { type: "content"; content: string }
+  | { type: "embed"; embed: MessageEmbedOptions }
+  | { type: "actionRow"; children: ActionRowChild[] }
+
+type ActionRowChild = {
+  type: "selectMenu"
   customId: string
-  run: (context: {
-    interaction: SelectMenuInteraction
-    member: GuildMember
-  }) => void | Promise<unknown>
+  options: MessageSelectOptionData[]
+}
+
+function addReply(...components: (string | InteractionComponent)[]): CommandHandlerAction {
+  return {
+    type: "add",
+    components: components.map((c) =>
+      typeof c === "string" ? { type: "content", content: c } : c,
+    ),
+  }
+}
+
+function updateReply(...components: (string | InteractionComponent)[]): CommandHandlerAction {
+  return {
+    type: "update",
+    components: components.map((c) =>
+      typeof c === "string" ? { type: "content", content: c } : c,
+    ),
+  }
+}
+
+function selectResponse(
+  customId: string,
+  callback: (values: string[]) => void,
+): CommandHandlerAction {
+  return { type: "selectResponse", customId, callback }
+}
+
+function embedComponent(embed: MessageEmbedOptions): InteractionComponent {
+  return { type: "embed", embed }
+}
+
+function actionRow(...children: ActionRowChild[]): InteractionComponent {
+  return {
+    type: "actionRow",
+    children,
+  }
+}
+
+function selectMenu(options: {
+  customId: string
+  options: MessageSelectOptionData[]
+}): ActionRowChild {
+  return {
+    type: "selectMenu",
+    ...options,
+  }
 }
 
 const commandHandlers: CommandHandler[] = [
   {
     name: "status",
     description: "See where you are, what you have, etc.",
-    async run({ interaction, member }) {
+    async *run({ member }) {
       let player = await ensurePlayer(member.user.id)
       let location = getLocation(player.locationId)
-      let locationUpdated = false
 
       if (!location) {
         player = await db.player.update({
@@ -50,37 +105,31 @@ const commandHandlers: CommandHandler[] = [
 
         location = getInitialLocation()
 
-        locationUpdated = true
+        yield addReply(
+          `Couldn't find where you were, so I just moved you back to ${location.name}. Anyway...`,
+        )
       }
 
-      const content = (() => {
-        if (locationUpdated) {
-          return `Couldn't find where you were at, so I moved you back to ${location.name}. Anyway, here's where you're at.`
-        }
-        return `Here's where you're at.`
-      })()
-
-      await interaction.reply({
-        content,
-        embeds: [
+      yield addReply(
+        `Here's where you're at.`,
+        embedComponent(
           buildEmbed()
             .authorName(member.displayName)
             .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
             .inlineField("Location", location.name)
             .inlineField("Exits", location.exits.map((id) => getLocation(id).name).join(", "))
             .finish(),
-        ],
-      })
+        ),
+      )
     },
   },
 
   {
     name: "move",
     description: "Move someplace else",
-    async run({ interaction, member }) {
+    async *run({ member }) {
       let player = await ensurePlayer(member.user.id)
       let location = getLocation(player.locationId)
-      let locationUpdated = false
 
       if (!location) {
         player = await db.player.update({
@@ -90,15 +139,10 @@ const commandHandlers: CommandHandler[] = [
 
         location = getInitialLocation()
 
-        locationUpdated = true
+        yield addReply(
+          `Couldn't find where you were, so I just moved you back to ${location.name}. Anyway...`,
+        )
       }
-
-      const content = (() => {
-        if (locationUpdated) {
-          return `Couldn't find where you were, so I just moved you back to ${location.name}. Anyway, where do you wanna go?`
-        }
-        return `Where do you wanna go?`
-      })()
 
       const options = location.exits.map((id) => {
         const location = getLocation(id)
@@ -108,39 +152,35 @@ const commandHandlers: CommandHandler[] = [
         }
       })
 
-      await interaction.reply({
-        content,
-        ephemeral: true,
-        components: [actionRow([selectMenu("move:newLocation", options)])],
-      })
-    },
-  },
-]
+      let newLocation: Location | undefined
+      const selectId = "newLocation"
 
-const selectHandlers: SelectHandler[] = [
-  {
-    customId: "move:newLocation",
-    async run({ interaction, member }) {
-      const newLocationId = interaction.values[0]
-      if (!newLocationId) {
-        logger.error("Didn't receive location for move")
-        return interaction.reply({ content: `Oops, something went wrong.` })
-      }
+      yield addReply(
+        `Where do you want to go?`,
+        actionRow(selectMenu({ customId: selectId, options })),
+      )
 
-      const newLocation = getLocation(newLocationId)
-      if (!newLocation) {
-        logger.error(`Couldn't find location with id ${newLocationId}`)
-        return interaction.reply({ content: `Oops, something went wrong.` })
+      while (!newLocation) {
+        yield selectResponse(selectId, ([value]) => {
+          if (value) newLocation = getLocation(value)
+        })
+
+        if (!newLocation) {
+          yield addReply(
+            `Huh, couldn't find that location. Try again.`,
+            actionRow(selectMenu({ customId: selectId, options })),
+          )
+        }
       }
 
       await db.player.update({
         where: { discordUserId: member.user.id },
-        data: { locationId: newLocationId },
+        data: { locationId: newLocation.id },
       })
 
-      await interaction.reply({
-        content: `Alright, here we are.`,
-        embeds: [
+      yield updateReply(
+        `Alright, here we are.`,
+        embedComponent(
           buildEmbed()
             .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
             .authorName(`${member.displayName} moved!`)
@@ -148,11 +188,17 @@ const selectHandlers: SelectHandler[] = [
             .description(newLocation.description)
             .field("Exits", newLocation.exits.map((id) => getLocation(id).name).join(", "))
             .finish(),
-        ],
-      })
+        ),
+      )
     },
   },
 ]
+
+const pendingSelectResponses = new Set<{
+  customId: string
+  callback: (values: string[]) => void
+  iterator: AsyncIterableIterator<CommandHandlerAction>
+}>()
 
 const bot = new Client({
   intents: [Intents.FLAGS.GUILDS],
@@ -192,20 +238,101 @@ async function main() {
         return
       }
 
+      function createReplyOptions(components: InteractionComponent[]): InteractionReplyOptions {
+        const content = components
+          .map((c) => c.type === "content" && c.content)
+          .filter(isTruthy)
+          .join("\n")
+
+        const embeds = components
+          .map((component) => component.type === "embed" && component.embed)
+          .filter(isTruthy)
+
+        const replyComponents: MessageActionRowOptions[] = components
+          .map<MessageActionRowOptions | Falsy>((component) => {
+            if (component.type !== "actionRow") return
+            return {
+              type: "ACTION_ROW",
+              components: component.children
+                .map<MessageSelectMenuOptions | Falsy>((c) => {
+                  if (c.type !== "selectMenu") return
+                  return {
+                    type: "SELECT_MENU",
+                    customId: c.customId,
+                    options: c.options,
+                  }
+                })
+                .filter(isTruthy),
+            }
+          })
+          .filter(isTruthy)
+
+        return { content, embeds, components: replyComponents }
+      }
+
+      async function runIterator(
+        iterator: AsyncIterableIterator<CommandHandlerAction>,
+        interaction: CommandInteraction | SelectMenuInteraction,
+      ) {
+        let running = true
+        do {
+          const result = await iterator.next()
+
+          if (result.done) {
+            running = false
+            break
+          }
+
+          const action = result.value
+
+          if (action.type === "add") {
+            const options = createReplyOptions(action.components)
+            if (interaction.replied) {
+              await interaction.followUp(options)
+            } else {
+              await interaction.reply(options)
+            }
+            continue
+          }
+
+          if (action.type === "update") {
+            const options = createReplyOptions(action.components)
+            if (interaction.isSelectMenu()) {
+              await interaction.update(options)
+            } else {
+              await interaction.reply(options)
+            }
+            continue
+          }
+
+          if (action.type === "selectResponse") {
+            pendingSelectResponses.add({
+              iterator,
+              ...action,
+            })
+            break
+          }
+        } while (running)
+      }
+
       if (interaction.isCommand()) {
         const handler = commandHandlers.find((c) => c.name === interaction.commandName)
-        await handler?.run({
-          interaction,
-          member: interaction.member as GuildMember,
-        })
+        if (!handler) return
+
+        const iterator = handler.run({ member: interaction.member as GuildMember })
+        runIterator(iterator, interaction)
       }
 
       if (interaction.isSelectMenu()) {
-        const handler = selectHandlers.find((h) => h.customId === interaction.customId)
-        await handler?.run({
-          interaction,
-          member: interaction.member as GuildMember,
-        })
+        const pending = [...pendingSelectResponses].find(
+          ({ customId }) => customId === interaction.customId,
+        )
+
+        if (pending) {
+          pending.callback(interaction.values)
+          runIterator(pending.iterator, interaction)
+          pendingSelectResponses.delete(pending)
+        }
       }
     },
   })

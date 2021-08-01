@@ -1,3 +1,5 @@
+import { Falsy } from "./types"
+
 export function raise(error: string | Error): never {
   throw typeof error === "string" ? new Error(error) : error
 }
@@ -17,4 +19,8 @@ export function includes<Value>(array: readonly Value[], value: unknown): value 
 
 export function hasKey<Subject>(object: Subject, key: PropertyKey): key is keyof Subject {
   return key in object
+}
+
+export function isTruthy<T>(value: T | Falsy): value is T {
+  return !!value
 }
