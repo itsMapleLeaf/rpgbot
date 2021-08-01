@@ -1,62 +1,63 @@
 import {
-  Embed,
-  EmbedAuthor,
-  EmbedFooter,
-  EmbedImage,
-  EmbedThumbnail,
-} from "https://deno.land/x/discordeno@12.0.1/mod"
+  MessageEmbed,
+  MessageEmbedAuthor,
+  MessageEmbedFooter,
+  MessageEmbedImage,
+  MessageEmbedOptions,
+  MessageEmbedThumbnail,
+} from "discord.js"
 
 export type EmbedBuilder = ReturnType<typeof createEmbedBuilder>
 
-export function createEmbedBuilder(embed: Embed = {}) {
+export function createEmbedBuilder(embedOptions: MessageEmbedOptions = {}) {
   return {
     setTitle(title: string) {
-      return createEmbedBuilder({ ...embed, title })
+      return createEmbedBuilder({ ...embedOptions, title })
     },
     setDescription(description: string) {
-      return createEmbedBuilder({ ...embed, description })
+      return createEmbedBuilder({ ...embedOptions, description })
     },
-    setAuthor(author: EmbedAuthor) {
-      return createEmbedBuilder({ ...embed, author })
+    setAuthor(author: MessageEmbedAuthor) {
+      return createEmbedBuilder({ ...embedOptions, author })
     },
     setAuthorName(name: string) {
-      return createEmbedBuilder({ ...embed, author: { ...embed.author, name } })
+      return createEmbedBuilder({ ...embedOptions, author: { ...embedOptions.author, name } })
     },
-    setAuthorIcon(url: string) {
+    setAuthorIcon(url: string | undefined | null) {
       return createEmbedBuilder({
-        ...embed,
-        author: { ...embed.author, iconUrl: url },
+        ...embedOptions,
+        author: { ...embedOptions.author, iconURL: url ?? undefined },
       })
     },
     setColor(color: number) {
-      return createEmbedBuilder({ ...embed, color })
+      return createEmbedBuilder({ ...embedOptions, color })
     },
-    setImage(image: EmbedImage) {
-      return createEmbedBuilder({ ...embed, image })
+    setImage(image: MessageEmbedImage) {
+      return createEmbedBuilder({ ...embedOptions, image })
     },
-    setThumbnail(thumbnail: EmbedThumbnail) {
-      return createEmbedBuilder({ ...embed, thumbnail })
+    setThumbnail(thumbnail: MessageEmbedThumbnail) {
+      return createEmbedBuilder({ ...embedOptions, thumbnail })
     },
-    setFooter(footer: EmbedFooter) {
-      return createEmbedBuilder({ ...embed, footer })
+    setFooter(footer: MessageEmbedFooter) {
+      return createEmbedBuilder({ ...embedOptions, footer })
     },
-    setTimestamp(timestamp: string) {
-      return createEmbedBuilder({ ...embed, timestamp })
+    setTimestamp(timestamp: number | Date | undefined) {
+      return createEmbedBuilder({ ...embedOptions, timestamp })
     },
     addField(name: string, value: string) {
       return createEmbedBuilder({
-        ...embed,
-        fields: [...(embed.fields ?? []), { name, value }],
+        ...embedOptions,
+        fields: [...(embedOptions.fields ?? []), { name, value }],
       })
     },
     addInlineField(name: string, value: string) {
       return createEmbedBuilder({
-        ...embed,
-        fields: [...(embed.fields ?? []), { name, value, inline: true }],
+        ...embedOptions,
+        fields: [...(embedOptions.fields ?? []), { name, value, inline: true }],
       })
     },
     build() {
-      return embed
+      return new MessageEmbed(embedOptions)
     },
   }
 }
