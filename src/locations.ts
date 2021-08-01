@@ -4,6 +4,7 @@ import { NonEmptyArray, ValueOf } from "./types"
 export type LocationId = ValueOf<typeof locationIds>
 
 export type Location = {
+  id: LocationId
   name: string
   description: string
   exits: NonEmptyArray<LocationId>
@@ -14,20 +15,24 @@ export function getInitialLocationId(): LocationId {
 }
 
 export function getInitialLocation(): Location {
-  return locationMap[locationIds[0]]
+  return getLocation(getInitialLocationId())
 }
 
+export function getLocation(locationId: LocationId): Location
+export function getLocation(locationId: string): Location | undefined
 export function getLocation(locationId: string): Location | undefined {
-  return hasKey(locationMap, locationId) ? locationMap[locationId] : undefined
+  return hasKey(locationMap, locationId)
+    ? { ...locationMap[locationId], id: locationId }
+    : undefined
 }
 
 export function getAllLocations(): Location[] {
-  return Object.values(locationMap)
+  return (Object.keys(locationMap) as LocationId[]).map((id) => getLocation(id))
 }
 
 const locationIds = ["tavern", "townSquare", "forest"] as const
 
-const locationMap: Record<LocationId, Location> = {
+const locationMap: Record<LocationId, Omit<Location, "id">> = {
   tavern: {
     name: "The Tavern",
     description:

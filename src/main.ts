@@ -1,65 +1,109 @@
-import { Guild, GuildMember } from "discord.js"
+import { Client, CommandInteraction, GuildMember, Intents, Snowflake } from "discord.js"
 import "dotenv/config.js"
-import { runBot } from "./bot"
-import { createCommandManager } from "./command-manager"
-import { addCommands } from "./commands"
-import { getErrorInfo, toError } from "./common"
+import { bindClientEvents } from "./client-events"
+import { getErrorInfo } from "./common"
+import { client } from "./db"
+import { createEmbedBuilder } from "./embed-builder"
+import { getInitialLocation, getInitialLocationId, getLocation } from "./locations"
 import { logger } from "./logger"
+import { ensurePlayer } from "./player"
+
+type Command = {
+  name: string
+  description: string
+  run: (context: CommandRunContext) => Promise<void>
+}
+type CommandRunContext = {
+  interaction: CommandInteraction
+  member: GuildMember
+}
+
+const commands: Command[] = [
+  {
+    name: "status",
+    description: "See where you are, what you have, etc.",
+    async run({ interaction, member }) {
+      let player = await ensurePlayer(member.user.id)
+      let location = getLocation(player.locationId)
+
+      if (!location) {
+        await interaction.reply({
+          content:
+            "Not sure where you're at... maybe that place got deleted or somethin'. I'll send you back to the tavern.",
+          ephemeral: true,
+        })
+
+        player = await client.player.update({
+          where: { id: player.id },
+          data: { locationId: getInitialLocationId() },
+        })
+
+        location = getInitialLocation()
+      }
+
+      await interaction.followUp({
+        content: `Here's where you're at!`,
+        embeds: [
+          createEmbedBuilder()
+            .setAuthorName(member.displayName)
+            .setAuthorIcon(member.user.avatarURL({ format: "png", size: 32 }))
+            .addField("Location", location.name)
+            .build(),
+        ],
+      })
+    },
+  },
+]
+
+const bot = new Client({
+  intents: [Intents.FLAGS.GUILDS],
+})
+
+async function syncCommands(guildId: Snowflake) {
+  for (const command of commands) {
+    logger.info(`Adding command: ${command.name}`)
+    await bot.application?.commands.create(command, guildId)
+  }
+
+  const commandNames = new Set(commands.map((c) => c.name))
+  for (const appCommand of bot.application?.commands.cache.values() ?? []) {
+    if (!commandNames.has(appCommand.name)) {
+      logger.info(`Removing command: ${appCommand.name}`)
+      await bot.application?.commands.delete(appCommand.id)
+    }
+  }
+}
 
 async function main() {
-  const commandManager = createCommandManager()
-  addCommands(commandManager)
-
-  const client = await runBot({
+  bindClientEvents(bot, {
     async ready() {
       logger.info("Ready")
 
-      for (const guild of client.guilds.cache.values()) {
-        await handleGuildAvailable(guild)
+      for (const [, guild] of bot.guilds.cache) {
+        await syncCommands(guild.id)
       }
     },
 
     async guildCreate(guild) {
-      await handleGuildAvailable(guild)
+      await syncCommands(guild.id)
     },
 
     async interactionCreate(interaction) {
-      if (!interaction.isCommand()) {
-        return // Ignore non-commands
-      }
-
       if (!interaction.inGuild()) {
-        return interaction.reply("Sorry, can only use this in guilds for now!")
+        return
       }
 
-      try {
-        const replyGenerator = commandManager.getInteractionReplies(interaction, {
+      if (interaction.isCommand()) {
+        const command = commands.find((c) => c.name === interaction.commandName)
+        await command?.run({
+          interaction,
           member: interaction.member as GuildMember,
         })
-        if (!replyGenerator) {
-          logger.warn(`No reply for ${interaction.command?.name}`)
-          return interaction.reply(
-            "Huh, don't know what to do with that one. Something went wrong. Wait a few and try again.",
-          )
-        }
-
-        const firstReply = await replyGenerator.next()
-        await interaction.reply(firstReply.value)
-
-        for await (const reply of replyGenerator) {
-          await interaction.followUp(reply)
-        }
-      } catch (error) {
-        await interaction.reply("Oops, something went wrong. lol")
-        logger.error(toError(error).stack || toError(error).message)
       }
     },
   })
 
-  async function handleGuildAvailable(guild: Guild) {
-    logger.info(`Guild ${guild.id} available`)
-    await commandManager.syncSlashCommands(client.application!.commands, guild.id)
-  }
+  await bot.login(process.env.BOT_TOKEN)
 }
 
 main().catch((error: unknown) => {
