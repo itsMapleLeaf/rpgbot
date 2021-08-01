@@ -1,5 +1,5 @@
-import { hasKey } from "./common"
-import { NonEmptyArray, ValueOf } from "./types"
+import { hasKey } from "../common/helpers"
+import { NonEmptyArray, ValueOf } from "../common/types"
 
 export type LocationId = ValueOf<typeof locationIds>
 

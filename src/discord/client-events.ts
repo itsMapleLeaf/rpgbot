@@ -1,6 +1,6 @@
 import { Client, ClientEvents } from "discord.js"
-import { toError } from "./common"
-import { logger } from "./logger"
+import { toError } from "../common/helpers"
+import { logger } from "../logger"
 
 export type ClientEventMap = {
   [EventName in keyof ClientEvents]?: (...args: ClientEvents[EventName]) => void | Promise<unknown>

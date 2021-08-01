@@ -1,6 +1,6 @@
 import { Snowflake } from "discord.js"
-import { Player } from "../prisma/client"
-import { db } from "./db"
+import { Player } from "../../prisma/client"
+import { db } from "../db"
 import { getInitialLocationId } from "./locations"
 
 export async function ensurePlayer(discordUserId: Snowflake): Promise<Player> {
