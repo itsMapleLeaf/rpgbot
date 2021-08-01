@@ -140,7 +140,6 @@ const selectHandlers: SelectHandler[] = [
 
       await interaction.reply({
         content: `Alright, here we are.`,
-        ephemeral: true,
         embeds: [
           buildEmbed()
             .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
