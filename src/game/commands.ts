@@ -1,12 +1,7 @@
 import { MessageSelectOptionData } from "discord.js"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
-import {
-  addReply,
-  updateReply,
-  waitForButton,
-  waitForSelect,
-} from "../discord/command-handler-action"
+import { addReply, updateReply, waitForInteraction } from "../discord/command-handler-action"
 import { buildEmbed } from "../discord/embed-builder"
 import {
   actionRowComponent,
@@ -82,7 +77,6 @@ export const commands: CommandHandler[] = [
         })
         .concat([{ label: "invalid location for test", value: "nope lol" }])
 
-      let newLocation: Location | undefined
       const selectId = "newLocation"
 
       yield addReply(
@@ -93,25 +87,21 @@ export const commands: CommandHandler[] = [
         ),
       )
 
+      let newLocation: Location | undefined
       while (!newLocation) {
-        let pressedButton = false
+        const interaction = yield waitForInteraction()
 
-        yield [
-          waitForSelect(selectId, ([value]) => {
-            if (value) newLocation = getLocation(value)
-          }),
-          waitForButton("nothing", () => {
-            pressedButton = true
-          }),
-        ]
-
-        if (pressedButton) {
-          console.log("pressed button?")
+        if (interaction?.customId === "nothing") {
           yield updateReply(
             `Stop wasting my time with a dumb button, dammit.`,
             actionRowComponent(selectMenuComponent({ customId: selectId, options })),
           )
           continue
+        }
+
+        const [newLocationId] = interaction?.values ?? []
+        if (newLocationId) {
+          newLocation = getLocation(newLocationId)
         }
 
         if (!newLocation) {

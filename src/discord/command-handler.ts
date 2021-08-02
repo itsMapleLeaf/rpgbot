@@ -1,8 +1,15 @@
 import { GuildMember } from "discord.js"
-import { MaybeArray } from "../common/types"
 import { CommandHandlerAction } from "./command-handler-action"
 
-export type CommandHandlerIterator = AsyncIterableIterator<MaybeArray<CommandHandlerAction>>
+export type CommandHandlerIterator = AsyncIterator<
+  CommandHandlerAction,
+  void,
+  ComponentInteraction | undefined
+>
+
+export type ComponentInteraction =
+  | { type: "button"; customId: string; values?: undefined }
+  | { type: "select"; customId: string; values: string[] }
 
 export type CommandHandler = {
   name: string

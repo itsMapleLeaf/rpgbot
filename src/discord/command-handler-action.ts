@@ -3,8 +3,7 @@ import { ReplyComponent } from "./reply-component"
 export type CommandHandlerAction =
   | { type: "add"; components: ReplyComponent[] }
   | { type: "update"; components: ReplyComponent[] }
-  | { type: "selectResponse"; customId: string; callback: (values: string[]) => void }
-  | { type: "buttonResponse"; customId: string; callback: () => void }
+  | { type: "interaction" }
 
 export function addReply(...components: (string | ReplyComponent)[]): CommandHandlerAction {
   return {
@@ -24,13 +23,6 @@ export function updateReply(...components: (string | ReplyComponent)[]): Command
   }
 }
 
-export function waitForSelect(
-  customId: string,
-  callback: (values: string[]) => void,
-): CommandHandlerAction {
-  return { type: "selectResponse", customId, callback }
-}
-
-export function waitForButton(customId: string, callback: () => void): CommandHandlerAction {
-  return { type: "buttonResponse", customId, callback }
+export function waitForInteraction(): CommandHandlerAction {
+  return { type: "interaction" }
 }

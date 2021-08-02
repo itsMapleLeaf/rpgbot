@@ -9,14 +9,10 @@ import {
 } from "discord.js"
 import { logger } from "../logger"
 import { bindClientEvents } from "./client-events"
-import { CommandHandler, CommandHandlerIterator } from "./command-handler"
+import { CommandHandler, CommandHandlerIterator, ComponentInteraction } from "./command-handler"
 import { createReplyOptions } from "./reply-component"
 
-const pendingResponses = new Set<{
-  customId: string
-  callback: (values: string[]) => void
-  iterator: CommandHandlerIterator
-}>()
+const pendingInteractions = new Set<{ iterator: CommandHandlerIterator }>()
 
 async function syncCommands(bot: Client, commands: CommandHandler[], guildId: Snowflake) {
   for (const command of commands) {
@@ -37,38 +33,59 @@ async function resumeCommandIterator(
   iterator: CommandHandlerIterator,
   interaction: CommandInteraction | MessageComponentInteraction,
 ) {
-  let running = true
-  while (running) {
-    const result = await iterator.next()
+  while (true) {
+    const interactionInfo: ComponentInteraction | undefined = interaction.isSelectMenu()
+      ? { type: "select", customId: interaction.customId, values: interaction.values }
+      : interaction.isButton()
+      ? { type: "button", customId: interaction.customId }
+      : undefined
+
+    const result = await iterator.next(interactionInfo)
     if (result.done) break
 
-    const actions = [result.value].flat()
-    for (const action of actions) {
-      if (action.type === "add") {
-        const options = createReplyOptions(action.components)
-        if (interaction.replied) {
-          await interaction.followUp(options)
-        } else {
-          await interaction.reply(options)
-        }
+    const action = result.value
+
+    if (action.type === "add") {
+      const options = createReplyOptions(action.components)
+      if (interaction.deferred) {
+        await interaction.editReply(options)
         continue
       }
 
-      if (action.type === "update") {
-        const options = createReplyOptions(action.components)
-        if (interaction.isMessageComponent()) {
-          await interaction.update(options)
-        } else {
-          await interaction.reply(options)
-        }
+      if (interaction.replied) {
+        await interaction.followUp(options)
         continue
       }
 
-      if (action.type === "selectResponse" || action.type === "buttonResponse") {
-        pendingResponses.add({ iterator, ...action })
-        running = false
+      await interaction.reply(options)
+      continue
+    }
+
+    if (action.type === "update") {
+      const options = createReplyOptions(action.components)
+
+      if (interaction.deferred) {
+        await interaction.editReply(options)
         continue
       }
+
+      if (interaction.isMessageComponent()) {
+        await interaction.update(options)
+        continue
+      }
+
+      if (interaction.replied) {
+        await interaction.editReply(options)
+        continue
+      }
+
+      await interaction.followUp(options)
+      continue
+    }
+
+    if (action.type === "interaction") {
+      pendingInteractions.add({ iterator })
+      break
     }
   }
 }
@@ -108,20 +125,21 @@ export async function runBot({
         const handler = commands.find((c) => c.name === interaction.commandName)
         if (!handler) return
 
-        const iterator = handler.run({ member: interaction.member as GuildMember })
-        await resumeCommandIterator(iterator, interaction)
+        await resumeCommandIterator(
+          handler.run({ member: interaction.member as GuildMember }),
+          interaction,
+        )
+        return
       }
 
       if (interaction.isMessageComponent()) {
-        const responses = [...pendingResponses]
-        pendingResponses.clear()
+        const interactions = [...pendingInteractions]
+        pendingInteractions.clear()
 
-        for (const pending of responses) {
-          if (pending.customId === interaction.customId) {
-            pending.callback(interaction.isSelectMenu() ? interaction.values : [])
-            await resumeCommandIterator(pending.iterator, interaction)
-          }
+        for (const pending of interactions) {
+          await resumeCommandIterator(pending.iterator, interaction)
         }
+        return
       }
     },
   })
