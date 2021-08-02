@@ -4,7 +4,8 @@
     "debug": "nodemon -e ts -x node --inspect -r esbuild-register src/main.ts",
     "start": "node -r esbuild-register src/main.ts",
     "format": "prettier --write .",
-    "prepare": "prisma generate"
+    "prepare": "prisma generate",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "2.28.0",
