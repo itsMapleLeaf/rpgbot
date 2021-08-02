@@ -1,7 +1,13 @@
 import { MessageSelectOptionData } from "discord.js"
+import { sleep } from "../common/helpers"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
-import { addReply, updateReply, waitForInteraction } from "../discord/command-handler-action"
+import {
+  addReply,
+  deleteReply,
+  updateReply,
+  waitForInteraction,
+} from "../discord/command-handler-action"
 import { buildEmbed } from "../discord/embed-builder"
 import {
   actionRowComponent,
@@ -77,13 +83,11 @@ export const commands: CommandHandler[] = [
         })
         .concat([{ label: "invalid location for test", value: "nope lol" }])
 
-      const selectId = "newLocation"
-
       yield addReply(
         `Where do you want to go?`,
-        actionRowComponent(selectMenuComponent({ customId: selectId, options })),
+        actionRowComponent(selectMenuComponent({ customId: "newLocation", options })),
         actionRowComponent(
-          buttonComponent({ customId: "nothing", label: "random button", style: "PRIMARY" }),
+          buttonComponent({ customId: "cancel", label: "Cancel", style: "SECONDARY" }),
         ),
       )
 
@@ -91,17 +95,18 @@ export const commands: CommandHandler[] = [
       while (!newLocation) {
         const interaction = yield waitForInteraction()
 
-        if (interaction?.customId === "nothing") {
-          yield updateReply(
-            `Stop wasting my time with a dumb button, dammit.`,
-            actionRowComponent(selectMenuComponent({ customId: selectId, options })),
-          )
-          continue
+        if (interaction?.customId === "cancel") {
+          yield updateReply(`Alright, carry on.`)
+          await sleep(1500)
+          yield deleteReply()
+          return
         }
 
-        const [newLocationId] = interaction?.values ?? []
-        if (newLocationId) {
-          newLocation = getLocation(newLocationId)
+        if (interaction?.customId === "newLocation") {
+          const [newLocationId] = interaction?.values ?? []
+          if (newLocationId) {
+            newLocation = getLocation(newLocationId)
+          }
         }
 
         if (!newLocation) {
@@ -118,7 +123,7 @@ export const commands: CommandHandler[] = [
       })
 
       yield updateReply(
-        `Alright, here we are.`,
+        `Here we are!`,
         embedComponent(
           buildEmbed()
             .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
@@ -138,6 +143,9 @@ export const commands: CommandHandler[] = [
     async *run({ member }) {
       const embed = commands
         .reduce((embed, command) => embed.field(command.name, command.description), buildEmbed())
+        .footer({
+          text: "There ain't much yet! Still working on stuff.",
+        })
         .finish()
 
       yield addReply(`Here's a list of commands you can use.`, embedComponent(embed))
