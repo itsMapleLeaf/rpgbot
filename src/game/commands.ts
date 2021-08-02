@@ -1,11 +1,10 @@
 import { MessageSelectOptionData } from "discord.js"
 import { Location } from "../../prisma/client"
-import { sleep } from "../common/helpers"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
 import {
+  addEphemeralReply,
   addReply,
-  deleteReply,
   updateReply,
   waitForInteraction,
 } from "../discord/command-handler-action"
@@ -77,7 +76,7 @@ export const commands: CommandHandler[] = [
         ]
       }
 
-      yield addReply(...locationSelectComponent(`Where do you want to go?`))
+      yield addEphemeralReply(...locationSelectComponent(`Where do you want to go?`))
 
       let newLocation: (Location & { exitLocations: Location[] }) | undefined
       while (!newLocation) {
@@ -89,8 +88,6 @@ export const commands: CommandHandler[] = [
 
         if (interaction?.customId === "move:cancel") {
           yield updateReply(`Alright, carry on.`)
-          await sleep(1500)
-          yield deleteReply()
           return
         }
 
@@ -113,7 +110,10 @@ export const commands: CommandHandler[] = [
         data: { locationId: newLocation.id },
       })
 
-      yield updateReply(
+      // remove the ephemeral form
+      yield updateReply("Done.")
+
+      yield addReply(
         `Here we are!`,
         embedComponent(
           buildEmbed()

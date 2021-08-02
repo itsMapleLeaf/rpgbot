@@ -45,15 +45,25 @@ async function resumeCommandIterator(
     const action = result.value
 
     if (action.type === "add") {
-      await addOrCreateReply(interaction, createReplyOptions(action.components))
+      await addOrCreateReply(interaction, {
+        ...createReplyOptions(action.components),
+        ephemeral: action.ephemeral,
+      })
     }
 
     if (action.type === "update") {
       await editOrCreateReply(interaction, createReplyOptions(action.components))
     }
 
-    if (action.type === "delete" && (interaction.replied || interaction.deferred)) {
-      await interaction.deleteReply()
+    if (action.type === "delete") {
+      if (interaction.ephemeral) {
+        logger.warn("Attempted to delete ephemeral message")
+        continue
+      }
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.deleteReply()
+      }
     }
 
     if (action.type === "interaction") {
