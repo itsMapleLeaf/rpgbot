@@ -16,7 +16,7 @@ import {
   embedComponent,
   selectMenuComponent,
 } from "../discord/reply-component"
-import { getLocation } from "./locations"
+import { getInitialLocation, getLocation } from "./locations"
 import { ensurePlayer } from "./player"
 
 export const commands: CommandHandler[] = [
@@ -46,36 +46,55 @@ export const commands: CommandHandler[] = [
     async *run({ member }) {
       const player = await ensurePlayer(member.user.id)
 
-      const options = player.location.exitLocations
-        .map<MessageSelectOptionData>((location) => ({
-          label: location.name,
-          value: location.id,
-        }))
-        .concat([{ label: "invalid location for test", value: "nope lol" }])
+      let options = player.location.exitLocations.map<MessageSelectOptionData>((location) => ({
+        label: location.name,
+        value: location.id,
+      }))
 
-      function locationSelectComponent() {
+      if (!options.length) {
+        const initialLocation = getInitialLocation()
+        options = [{ label: initialLocation.name, value: initialLocation.id }]
+      }
+
+      function locationSelectComponent(content: string) {
+        const [onlyOption, ...rest] = options
+        if (onlyOption && rest.length === 0) {
+          return [
+            `Move to ${onlyOption.label}?`,
+            actionRowComponent(
+              buttonComponent({ customId: "move:confirm", label: "Confirm", style: "PRIMARY" }),
+              buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
+            ),
+          ]
+        }
+
         return [
-          actionRowComponent(selectMenuComponent({ customId: "newLocation", options })),
+          content,
+          actionRowComponent(selectMenuComponent({ customId: "move:newLocation", options })),
           actionRowComponent(
-            buttonComponent({ customId: "cancel", label: "Cancel", style: "SECONDARY" }),
+            buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
           ),
         ]
       }
 
-      yield addReply(`Where do you want to go?`, ...locationSelectComponent())
+      yield addReply(...locationSelectComponent(`Where do you want to go?`))
 
       let newLocation: (Location & { exitLocations: Location[] }) | undefined
       while (!newLocation) {
         const interaction = yield waitForInteraction()
 
-        if (interaction?.customId === "cancel") {
+        if (interaction?.customId === "move:confirm") {
+          newLocation = await getLocation(options[0].value)
+        }
+
+        if (interaction?.customId === "move:cancel") {
           yield updateReply(`Alright, carry on.`)
           await sleep(1500)
           yield deleteReply()
           return
         }
 
-        if (interaction?.customId === "newLocation") {
+        if (interaction?.customId === "move:newLocation") {
           const [newLocationId] = interaction?.values ?? []
           if (newLocationId) {
             newLocation = await getLocation(newLocationId)
@@ -84,8 +103,7 @@ export const commands: CommandHandler[] = [
 
         if (!newLocation) {
           yield updateReply(
-            `Huh, couldn't find that location. Try again.`,
-            ...locationSelectComponent(),
+            ...locationSelectComponent(`Huh, couldn't find that location. Try again.`),
           )
         }
       }
