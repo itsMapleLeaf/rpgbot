@@ -12,7 +12,21 @@ generator client {
 }
 
 model Player {
-  id            String @id @default(uuid())
-  discordUserId String @unique
+  id            String   @id @default(uuid())
+  discordUserId String   @unique
+  location      Location @relation(fields: [locationId], references: [id])
   locationId    String
+}
+
+model Location {
+  id          String   @id
+  name        String
+  description String
+  players     Player[]
+
+  // locations we can exit to
+  exitLocations Location[] @relation("LocationToLocation", references: [id])
+
+  // locations we can enter from
+  entryLocations Location[] @relation("LocationToLocation", references: [id])
 }

@@ -1,4 +1,5 @@
 import { MessageSelectOptionData } from "discord.js"
+import { Location } from "../../prisma/client"
 import { sleep } from "../common/helpers"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
@@ -15,7 +16,7 @@ import {
   embedComponent,
   selectMenuComponent,
 } from "../discord/reply-component"
-import { getInitialLocation, getInitialLocationId, getLocation, Location } from "./locations"
+import { getLocation } from "./locations"
 import { ensurePlayer } from "./player"
 
 export const commands: CommandHandler[] = [
@@ -23,21 +24,7 @@ export const commands: CommandHandler[] = [
     name: "status",
     description: "See where you are, what you have, etc.",
     async *run({ member }) {
-      let player = await ensurePlayer(member.user.id)
-      let location = getLocation(player.locationId)
-
-      if (!location) {
-        player = await db.player.update({
-          where: { id: player.id },
-          data: { locationId: getInitialLocationId() },
-        })
-
-        location = getInitialLocation()
-
-        yield addReply(
-          `Couldn't find where you were, so I just moved you back to ${location.name}. Anyway...`,
-        )
-      }
+      const player = await ensurePlayer(member.user.id)
 
       yield addReply(
         `Here's where you're at.`,
@@ -45,8 +32,8 @@ export const commands: CommandHandler[] = [
           buildEmbed()
             .authorName(member.displayName)
             .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
-            .inlineField("Location", location.name)
-            .inlineField("Exits", location.exits.map((id) => getLocation(id).name).join(", "))
+            .inlineField("Location", player.location.name)
+            .inlineField("Exits", player.location.exitLocations.map((l) => l.name).join(", "))
             .finish(),
         ),
       )
@@ -57,41 +44,27 @@ export const commands: CommandHandler[] = [
     name: "move",
     description: "Move someplace else",
     async *run({ member }) {
-      let player = await ensurePlayer(member.user.id)
-      let location = getLocation(player.locationId)
+      const player = await ensurePlayer(member.user.id)
 
-      if (!location) {
-        player = await db.player.update({
-          where: { id: player.id },
-          data: { locationId: getInitialLocationId() },
-        })
-
-        location = getInitialLocation()
-
-        yield addReply(
-          `Couldn't find where you were, so I just moved you back to ${location.name}. Anyway...`,
-        )
-      }
-
-      const options = location.exits
-        .map<MessageSelectOptionData>((id) => {
-          const location = getLocation(id)
-          return {
-            label: location.name,
-            value: id,
-          }
-        })
+      const options = player.location.exitLocations
+        .map<MessageSelectOptionData>((location) => ({
+          label: location.name,
+          value: location.id,
+        }))
         .concat([{ label: "invalid location for test", value: "nope lol" }])
 
-      yield addReply(
-        `Where do you want to go?`,
-        actionRowComponent(selectMenuComponent({ customId: "newLocation", options })),
-        actionRowComponent(
-          buttonComponent({ customId: "cancel", label: "Cancel", style: "SECONDARY" }),
-        ),
-      )
+      function locationSelectComponent() {
+        return [
+          actionRowComponent(selectMenuComponent({ customId: "newLocation", options })),
+          actionRowComponent(
+            buttonComponent({ customId: "cancel", label: "Cancel", style: "SECONDARY" }),
+          ),
+        ]
+      }
 
-      let newLocation: Location | undefined
+      yield addReply(`Where do you want to go?`, ...locationSelectComponent())
+
+      let newLocation: (Location & { exitLocations: Location[] }) | undefined
       while (!newLocation) {
         const interaction = yield waitForInteraction()
 
@@ -105,14 +78,14 @@ export const commands: CommandHandler[] = [
         if (interaction?.customId === "newLocation") {
           const [newLocationId] = interaction?.values ?? []
           if (newLocationId) {
-            newLocation = getLocation(newLocationId)
+            newLocation = await getLocation(newLocationId)
           }
         }
 
         if (!newLocation) {
           yield updateReply(
             `Huh, couldn't find that location. Try again.`,
-            actionRowComponent(selectMenuComponent({ customId: selectId, options })),
+            ...locationSelectComponent(),
           )
         }
       }
@@ -130,7 +103,7 @@ export const commands: CommandHandler[] = [
             .authorName(`${member.displayName} moved!`)
             .title(newLocation.name)
             .description(newLocation.description)
-            .field("Exits", newLocation.exits.map((id) => getLocation(id).name).join(", "))
+            .field("Exits", newLocation.exitLocations.map((l) => l.name).join(", "))
             .finish(),
         ),
       )

@@ -1,54 +1,85 @@
-import { hasKey } from "../common/helpers"
-import { NonEmptyArray, ValueOf } from "../common/types"
+import { getErrorInfo } from "../common/helpers"
+import { db } from "../db"
+import { logger } from "../logger"
 
-export type LocationId = ValueOf<typeof locationIds>
-
-export type Location = {
-  id: LocationId
-  name: string
-  description: string
-  exits: NonEmptyArray<LocationId>
-}
-
-export function getInitialLocationId(): LocationId {
-  return locationIds[0]
-}
-
-export function getInitialLocation(): Location {
-  return getLocation(getInitialLocationId())
-}
-
-export function getLocation(locationId: LocationId): Location
-export function getLocation(locationId: string): Location | undefined
-export function getLocation(locationId: string): Location | undefined {
-  return hasKey(locationMap, locationId)
-    ? { ...locationMap[locationId], id: locationId }
-    : undefined
-}
-
-export function getAllLocations(): Location[] {
-  return (Object.keys(locationMap) as LocationId[]).map((id) => getLocation(id))
-}
-
-const locationIds = ["tavern", "townSquare", "forest"] as const
-
-const locationMap: Record<LocationId, Omit<Location, "id">> = {
-  tavern: {
-    name: "The Tavern",
-    description:
-      "The tavern is a large building with a bar and some tables. There are several people here, including a local barwoman and several customers.",
+const locations = [
+  {
+    data: {
+      id: "tavern",
+      name: "The Tavern",
+      description:
+        "The tavern is a large building with a bar and some tables. There are several people here, including a local barwoman and several customers.",
+    },
     exits: ["townSquare"],
   },
-  townSquare: {
-    name: "The Town Square",
-    description:
-      "The town square is a large open space with a few buildings and shop stalls, paths lined with cobblestone, and a fountain in the middle of the square.",
+  {
+    data: {
+      id: "townSquare",
+      name: "The Town Square",
+      description:
+        "The town square is a large open space with a few buildings and shop stalls, paths lined with cobblestone, and a fountain in the middle of the square.",
+    },
     exits: ["tavern", "forest"],
   },
-  forest: {
-    name: "The Forest",
-    description:
-      "The forest is a large area sporting a bounty of colorful foliage and wildlife. If you go deeper, you might find something interesting. But I haven't coded that in yet.",
+  {
+    data: {
+      id: "forest",
+      name: "The Forest",
+      description:
+        "The forest is a large area sporting a bounty of colorful foliage and wildlife. If you go deeper, you might find something interesting. But I haven't coded that in yet.",
+    },
     exits: ["townSquare"],
   },
+]
+
+export async function createLocations() {
+  logger.info("Creating locations")
+  await Promise.all(
+    locations.map(async (location) => {
+      try {
+        await db.location.upsert({
+          where: { id: location.data.id },
+          update: location.data,
+          create: location.data,
+        })
+        logger.info(`Created location "${location.data.id}"`)
+      } catch (error) {
+        logger.error(`Error creating location "${location.data.id}"`)
+        logger.error(getErrorInfo(error))
+      }
+    }),
+  )
+
+  logger.info("Creating exits")
+  await Promise.all(
+    locations.map(async (location) => {
+      try {
+        await db.location.update({
+          where: { id: location.data.id },
+          data: {
+            exitLocations: {
+              connect: location.exits.map((id) => ({ id })),
+            },
+          },
+        })
+        logger.info(`Created exits for location "${location.data.id}"`)
+      } catch (error) {
+        logger.error(`Error creating exits for "${location.data.id}"`)
+        logger.error(getErrorInfo(error))
+      }
+    }),
+  )
+}
+
+export async function getLocation(id: string) {
+  return (
+    (await db.location.findUnique({
+      where: { id },
+      include: { exitLocations: true },
+    })) ?? undefined
+  )
+}
+
+export function getInitialLocationId() {
+  return locations[0].data.id
 }
