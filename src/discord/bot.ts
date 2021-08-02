@@ -9,7 +9,12 @@ import {
 } from "discord.js"
 import { logger } from "../logger"
 import { bindClientEvents } from "./client-events"
-import { CommandHandler, CommandHandlerIterator, ComponentInteraction } from "./command-handler"
+import { CommandHandler, CommandHandlerIterator } from "./command-handler"
+import {
+  addOrCreateReply,
+  editOrCreateReply,
+  getComponentInteractionInfo,
+} from "./interaction-helpers"
 import { createReplyOptions } from "./reply-component"
 
 const pendingInteractions = new Set<{ iterator: CommandHandlerIterator }>()
@@ -34,52 +39,18 @@ async function resumeCommandIterator(
   interaction: CommandInteraction | MessageComponentInteraction,
 ) {
   while (true) {
-    const interactionInfo: ComponentInteraction | undefined = interaction.isSelectMenu()
-      ? { type: "select", customId: interaction.customId, values: interaction.values }
-      : interaction.isButton()
-      ? { type: "button", customId: interaction.customId }
-      : undefined
-
-    const result = await iterator.next(interactionInfo)
+    const result = await iterator.next(getComponentInteractionInfo(interaction))
     if (result.done) break
 
     const action = result.value
 
     if (action.type === "add") {
-      const options = createReplyOptions(action.components)
-      if (interaction.deferred) {
-        await interaction.editReply(options)
-        continue
-      }
-
-      if (interaction.replied) {
-        await interaction.followUp(options)
-        continue
-      }
-
-      await interaction.reply(options)
+      await addOrCreateReply(interaction, createReplyOptions(action.components))
       continue
     }
 
     if (action.type === "update") {
-      const options = createReplyOptions(action.components)
-
-      if (interaction.deferred) {
-        await interaction.editReply(options)
-        continue
-      }
-
-      if (interaction.isMessageComponent()) {
-        await interaction.update(options)
-        continue
-      }
-
-      if (interaction.replied) {
-        await interaction.editReply(options)
-        continue
-      }
-
-      await interaction.followUp(options)
+      await editOrCreateReply(interaction, createReplyOptions(action.components))
       continue
     }
 
