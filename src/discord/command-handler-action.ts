@@ -1,28 +1,29 @@
-import { ReplyComponent } from "./reply-component"
+import { normalizeReplyComponents, ReplyComponentArgs } from "./reply-component"
 
 export type CommandHandlerAction =
-  | { type: "add"; components: ReplyComponent[] }
-  | { type: "update"; components: ReplyComponent[] }
-  | { type: "interaction" }
+  | ReturnType<typeof addReply>
+  | ReturnType<typeof updateReply>
+  | ReturnType<typeof deleteReply>
+  | ReturnType<typeof waitForInteraction>
 
-export function addReply(...components: (string | ReplyComponent)[]): CommandHandlerAction {
+export function addReply(...components: ReplyComponentArgs) {
   return {
     type: "add",
-    components: components.map((c) =>
-      typeof c === "string" ? { type: "content", content: c } : c,
-    ),
-  }
+    components: normalizeReplyComponents(components),
+  } as const
 }
 
-export function updateReply(...components: (string | ReplyComponent)[]): CommandHandlerAction {
+export function updateReply(...components: ReplyComponentArgs) {
   return {
     type: "update",
-    components: components.map((c) =>
-      typeof c === "string" ? { type: "content", content: c } : c,
-    ),
-  }
+    components: normalizeReplyComponents(components),
+  } as const
 }
 
-export function waitForInteraction(): CommandHandlerAction {
-  return { type: "interaction" }
+export function deleteReply() {
+  return { type: "delete" } as const
+}
+
+export function waitForInteraction() {
+  return { type: "interaction" } as const
 }

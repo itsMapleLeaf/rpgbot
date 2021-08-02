@@ -46,12 +46,14 @@ async function resumeCommandIterator(
 
     if (action.type === "add") {
       await addOrCreateReply(interaction, createReplyOptions(action.components))
-      continue
     }
 
     if (action.type === "update") {
       await editOrCreateReply(interaction, createReplyOptions(action.components))
-      continue
+    }
+
+    if (action.type === "delete" && (interaction.replied || interaction.deferred)) {
+      await interaction.deleteReply()
     }
 
     if (action.type === "interaction") {

@@ -24,3 +24,7 @@ export function hasKey<Subject>(object: Subject, key: PropertyKey): key is keyof
 export function isTruthy<T>(value: T | Falsy): value is T {
   return !!value
 }
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}

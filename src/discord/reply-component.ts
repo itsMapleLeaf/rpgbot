@@ -15,6 +15,8 @@ export type ReplyComponent =
   | { type: "embed"; embed: MessageEmbedOptions }
   | { type: "actionRow"; children: ActionRowChild[] }
 
+export type ReplyComponentArgs = (string | ReplyComponent)[]
+
 export type ActionRowChild = SelectMenuComponent | ButtonComponent
 
 type ButtonComponent = {
@@ -29,6 +31,12 @@ type SelectMenuComponent = {
   type: "selectMenu"
   customId: string
   options: MessageSelectOptionData[]
+}
+
+export function normalizeReplyComponents(components: ReplyComponentArgs) {
+  return components.map<ReplyComponent>((c) =>
+    typeof c === "string" ? { type: "content", content: c } : c,
+  )
 }
 
 export function embedComponent(embed: MessageEmbedOptions): ReplyComponent {
