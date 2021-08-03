@@ -1,13 +1,7 @@
 import { MessageSelectOptionData } from "discord.js"
 import { Location, Player } from "../../prisma/client"
 import { db } from "../db"
-import { CommandHandler } from "../discord/command-handler"
-import {
-  addEphemeralReply,
-  addReply,
-  updateReply,
-  waitForInteraction,
-} from "../discord/command-handler-action"
+import { CommandHandler, CommandHandlerContext } from "../discord/command-handler"
 import { buildEmbed } from "../discord/embed-builder"
 import {
   actionRowComponent,
@@ -22,15 +16,15 @@ export const commands: CommandHandler[] = [
   {
     name: "status",
     description: "See where you are, what you have, etc.",
-    async *run({ member }) {
-      const player = await ensurePlayer(member.user.id)
+    async run(context) {
+      const player = await ensurePlayer(context.member.user.id)
 
-      yield addReply(
+      await context.addReply(
         `Here's where you're at.`,
         embedComponent(
           buildEmbed()
-            .authorName(member.displayName)
-            .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
+            .authorName(context.member.displayName)
+            .authorIcon(context.member.user.avatarURL({ format: "png", size: 32 }))
             .inlineField("Location", player.location.name)
             .inlineField("Exits", player.location.exitLocations.map((l) => l.name).join(", "))
             .finish(),
@@ -42,54 +36,32 @@ export const commands: CommandHandler[] = [
   {
     name: "move",
     description: "Move someplace else",
-    async *run({ member }) {
-      const player = await ensurePlayer(member.user.id)
+    async run(context) {
+      const player = await ensurePlayer(context.member.user.id)
 
       let options = getLocationSelectOptions(player)
 
-      yield addEphemeralReply(...locationSelectComponent(`Where do you want to go?`, options))
+      await context.addEphemeralReply(
+        ...locationSelectComponent(`Where do you want to go?`, options),
+      )
 
-      let newLocation: (Location & { exitLocations: Location[] }) | undefined
-      while (!newLocation) {
-        const interaction = yield waitForInteraction()
-
-        if (interaction?.customId === "move:confirm") {
-          newLocation = await getLocation(options[0].value)
-        }
-
-        if (interaction?.customId === "move:cancel") {
-          yield updateReply(`Alright, carry on.`)
-          return
-        }
-
-        if (interaction?.customId === "move:newLocation") {
-          const [newLocationId] = interaction?.values ?? []
-          if (newLocationId) {
-            newLocation = await getLocation(newLocationId)
-          }
-        }
-
-        if (!newLocation) {
-          yield updateReply(
-            ...locationSelectComponent(`Huh, couldn't find that place. Try again.`, options),
-          )
-        }
-      }
+      const newLocation = await promptForNewLocation(context, options)
+      if (!newLocation) return
 
       await db.player.update({
-        where: { discordUserId: member.user.id },
+        where: { discordUserId: context.member.user.id },
         data: { locationId: newLocation.id },
       })
 
       // remove the ephemeral form
-      yield updateReply("Done.")
+      await context.updateReply("Done.")
 
-      yield addReply(
+      await context.addReply(
         `Here we are!`,
         embedComponent(
           buildEmbed()
-            .authorIcon(member.user.avatarURL({ format: "png", size: 32 }))
-            .authorName(`${member.displayName} moved!`)
+            .authorIcon(context.member.user.avatarURL({ format: "png", size: 32 }))
+            .authorName(`${context.member.displayName} moved!`)
             .title(newLocation.name)
             .description(newLocation.description)
             .field("Exits", newLocation.exitLocations.map((l) => l.name).join(", "))
@@ -102,7 +74,7 @@ export const commands: CommandHandler[] = [
   {
     name: "help",
     description: "Not sure what to do? This lists all of the commands.",
-    async *run({ member }) {
+    async run(context) {
       const embed = commands
         .reduce((embed, command) => embed.field(command.name, command.description), buildEmbed())
         .footer({
@@ -110,10 +82,45 @@ export const commands: CommandHandler[] = [
         })
         .finish()
 
-      yield addReply(`Here's a list of commands you can use.`, embedComponent(embed))
+      await context.addReply(`Here's a list of commands you can use.`, embedComponent(embed))
     },
   },
 ]
+
+async function promptForNewLocation(
+  context: CommandHandlerContext,
+  options: { label: string; value: string }[],
+) {
+  let newLocation: (Location & { exitLocations: Location[] }) | undefined
+
+  while (!newLocation) {
+    const interaction = await context.waitForInteraction()
+
+    if (interaction?.customId === "move:confirm") {
+      newLocation = await getLocation(options[0].value)
+    }
+
+    if (interaction?.customId === "move:cancel") {
+      await context.updateReply(`Alright, carry on.`)
+      return
+    }
+
+    if (interaction?.customId === "move:newLocation") {
+      const [newLocationId] = interaction?.values ?? []
+      if (newLocationId) {
+        newLocation = await getLocation(newLocationId)
+      }
+    }
+
+    if (!newLocation) {
+      await context.updateReply(
+        ...locationSelectComponent(`Huh, couldn't find that place. Try again.`, options),
+      )
+    }
+  }
+
+  return newLocation
+}
 
 function getLocationSelectOptions(
   player: Player & { location: Location & { exitLocations: Location[] } },

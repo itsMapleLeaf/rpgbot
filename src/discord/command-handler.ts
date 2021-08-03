@@ -1,11 +1,5 @@
 import { GuildMember } from "discord.js"
-import { CommandHandlerAction } from "./command-handler-action"
-
-export type CommandHandlerIterator = AsyncGenerator<
-  CommandHandlerAction,
-  void,
-  ComponentInteraction | undefined
->
+import { ReplyComponentArgs } from "./reply-component"
 
 export type ComponentInteraction =
   | { type: "button"; customId: string; values?: undefined }
@@ -14,5 +8,14 @@ export type ComponentInteraction =
 export type CommandHandler = {
   name: string
   description: string
-  run: (context: { member: GuildMember }) => CommandHandlerIterator
+  run: (context: CommandHandlerContext) => void | Promise<unknown>
+}
+
+export type CommandHandlerContext = {
+  member: GuildMember
+  addReply: (...components: ReplyComponentArgs) => Promise<void>
+  addEphemeralReply: (...components: ReplyComponentArgs) => Promise<void>
+  updateReply: (...components: ReplyComponentArgs) => Promise<void>
+  deleteReply: () => Promise<void>
+  waitForInteraction: () => Promise<ComponentInteraction | undefined>
 }

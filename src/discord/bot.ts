@@ -9,7 +9,7 @@ import {
 } from "discord.js"
 import { logger } from "../logger"
 import { bindClientEvents } from "./client-events"
-import { CommandHandler, CommandHandlerIterator } from "./command-handler"
+import { CommandHandler, CommandHandlerContext, ComponentInteraction } from "./command-handler"
 import {
   addOrCreateReply,
   editOrCreateReply,
@@ -17,7 +17,50 @@ import {
 } from "./interaction-helpers"
 import { createReplyOptions } from "./reply-component"
 
-const pendingInteractions = new Set<{ iterator: CommandHandlerIterator }>()
+const pendingInteractions = new Set<{
+  resolve: (interaction: ComponentInteraction | undefined) => void
+}>()
+
+function createCommandHandlerContext(
+  interaction: CommandInteraction | MessageComponentInteraction,
+  member: GuildMember,
+): CommandHandlerContext {
+  return {
+    member,
+
+    addReply: async (...components) => {
+      await addOrCreateReply(interaction, createReplyOptions(components))
+    },
+
+    addEphemeralReply: async (...components) => {
+      await addOrCreateReply(interaction, {
+        ...createReplyOptions(components),
+        ephemeral: true,
+      })
+    },
+
+    updateReply: async (...components) => {
+      await editOrCreateReply(interaction, createReplyOptions(components))
+    },
+
+    deleteReply: async () => {
+      if (interaction.ephemeral) {
+        logger.warn("Attempted to delete ephemeral message")
+        return
+      }
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.deleteReply()
+      }
+    },
+
+    waitForInteraction: () => {
+      return new Promise((resolve) => {
+        pendingInteractions.add({ resolve })
+      })
+    },
+  }
+}
 
 async function syncCommands(bot: Client, commands: CommandHandler[], guildId: Snowflake) {
   for (const command of commands) {
@@ -30,45 +73,6 @@ async function syncCommands(bot: Client, commands: CommandHandler[], guildId: Sn
     if (!commandNames.has(appCommand.name)) {
       logger.info(`Removing command: ${appCommand.name}`)
       await bot.application?.commands.delete(appCommand.id)
-    }
-  }
-}
-
-async function resumeCommandIterator(
-  iterator: CommandHandlerIterator,
-  interaction: CommandInteraction | MessageComponentInteraction,
-) {
-  while (true) {
-    const result = await iterator.next(getComponentInteractionInfo(interaction))
-    if (result.done) break
-
-    const action = result.value
-
-    if (action.type === "add") {
-      await addOrCreateReply(interaction, {
-        ...createReplyOptions(action.components),
-        ephemeral: action.ephemeral,
-      })
-    }
-
-    if (action.type === "update") {
-      await editOrCreateReply(interaction, createReplyOptions(action.components))
-    }
-
-    if (action.type === "delete") {
-      if (interaction.ephemeral) {
-        logger.warn("Attempted to delete ephemeral message")
-        continue
-      }
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.deleteReply()
-      }
-    }
-
-    if (action.type === "interaction") {
-      pendingInteractions.add({ iterator })
-      break
     }
   }
 }
@@ -108,10 +112,12 @@ export async function runBot({
         const handler = commands.find((c) => c.name === interaction.commandName)
         if (!handler) return
 
-        await resumeCommandIterator(
-          handler.run({ member: interaction.member as GuildMember }),
+        const context: CommandHandlerContext = createCommandHandlerContext(
           interaction,
+          interaction.member as GuildMember,
         )
+
+        await handler.run(context)
         return
       }
 
@@ -120,7 +126,7 @@ export async function runBot({
         pendingInteractions.clear()
 
         for (const pending of interactions) {
-          await resumeCommandIterator(pending.iterator, interaction)
+          pending.resolve(getComponentInteractionInfo(interaction))
         }
         return
       }

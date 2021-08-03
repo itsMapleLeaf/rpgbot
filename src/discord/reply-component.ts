@@ -7,11 +7,11 @@ import {
   MessageSelectMenuOptions,
   MessageSelectOptionData,
 } from "discord.js"
-import { isTruthy } from "../common/helpers"
+import { isObject, isString, isTruthy } from "../common/helpers"
 import { Falsy } from "../common/types"
 
 export type ReplyComponent =
-  | { type: "content"; content: string }
+  | string
   | { type: "embed"; embed: MessageEmbedOptions }
   | { type: "actionRow"; children: ActionRowChild[] }
 
@@ -31,12 +31,6 @@ type SelectMenuComponent = {
   type: "selectMenu"
   customId: string
   options: MessageSelectOptionData[]
-}
-
-export function normalizeReplyComponents(components: ReplyComponentArgs) {
-  return components.map<ReplyComponent>((c) =>
-    typeof c === "string" ? { type: "content", content: c } : c,
-  )
 }
 
 export function embedComponent(embed: MessageEmbedOptions): ReplyComponent {
@@ -62,16 +56,15 @@ export function selectMenuComponent(options: {
 }
 
 export function createReplyOptions(components: ReplyComponent[]): InteractionReplyOptions {
-  const content = components
-    .map((c) => c.type === "content" && c.content)
-    .filter(isTruthy)
-    .join("\n")
+  const content = components.filter(isString).join("\n")
 
   const embeds = components
+    .filter(isObject)
     .map((component) => component.type === "embed" && component.embed)
     .filter(isTruthy)
 
   const replyComponents: MessageActionRowOptions[] = components
+    .filter(isObject)
     .map<MessageActionRowOptions | Falsy>((component) => {
       if (component.type !== "actionRow") return
       return {

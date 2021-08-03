@@ -28,3 +28,13 @@ export function isTruthy<T>(value: T | Falsy): value is T {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export function isObject<T extends object>(
+  value: T | string | number | boolean | undefined | null,
+): value is T {
+  return typeof value === "object" && value !== null
+}
+
+export function isString(value: unknown): value is string {
+  return typeof value === "string"
+}
