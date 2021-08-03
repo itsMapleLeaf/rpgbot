@@ -1,5 +1,5 @@
 import { MessageSelectOptionData } from "discord.js"
-import { Location } from "../../prisma/client"
+import { Location, Player } from "../../prisma/client"
 import { db } from "../db"
 import { CommandHandler } from "../discord/command-handler"
 import {
@@ -45,38 +45,9 @@ export const commands: CommandHandler[] = [
     async *run({ member }) {
       const player = await ensurePlayer(member.user.id)
 
-      let options = player.location.exitLocations.map<MessageSelectOptionData>((location) => ({
-        label: location.name,
-        value: location.id,
-      }))
+      let options = getLocationSelectOptions(player)
 
-      if (!options.length) {
-        const initialLocation = getInitialLocation()
-        options = [{ label: initialLocation.name, value: initialLocation.id }]
-      }
-
-      function locationSelectComponent(content: string) {
-        const [onlyOption, ...rest] = options
-        if (onlyOption && rest.length === 0) {
-          return [
-            `Move to ${onlyOption.label}?`,
-            actionRowComponent(
-              buttonComponent({ customId: "move:confirm", label: "Confirm", style: "PRIMARY" }),
-              buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
-            ),
-          ]
-        }
-
-        return [
-          content,
-          actionRowComponent(selectMenuComponent({ customId: "move:newLocation", options })),
-          actionRowComponent(
-            buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
-          ),
-        ]
-      }
-
-      yield addEphemeralReply(...locationSelectComponent(`Where do you want to go?`))
+      yield addEphemeralReply(...locationSelectComponent(`Where do you want to go?`, options))
 
       let newLocation: (Location & { exitLocations: Location[] }) | undefined
       while (!newLocation) {
@@ -100,7 +71,7 @@ export const commands: CommandHandler[] = [
 
         if (!newLocation) {
           yield updateReply(
-            ...locationSelectComponent(`Huh, couldn't find that location. Try again.`),
+            ...locationSelectComponent(`Huh, couldn't find that place. Try again.`, options),
           )
         }
       }
@@ -143,3 +114,38 @@ export const commands: CommandHandler[] = [
     },
   },
 ]
+
+function getLocationSelectOptions(
+  player: Player & { location: Location & { exitLocations: Location[] } },
+) {
+  if (player.location.exitLocations.length === 0) {
+    const initialLocation = getInitialLocation()
+    return [{ label: initialLocation.name, value: initialLocation.id }]
+  }
+
+  return player.location.exitLocations.map((location) => ({
+    label: location.name,
+    value: location.id,
+  }))
+}
+
+function locationSelectComponent(content: string, options: MessageSelectOptionData[]) {
+  const [onlyOption, ...rest] = options
+  if (onlyOption && rest.length === 0) {
+    return [
+      `Move to ${onlyOption.label}?`,
+      actionRowComponent(
+        buttonComponent({ customId: "move:confirm", label: "Confirm", style: "PRIMARY" }),
+        buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
+      ),
+    ]
+  }
+
+  return [
+    content,
+    actionRowComponent(selectMenuComponent({ customId: "move:newLocation", options })),
+    actionRowComponent(
+      buttonComponent({ customId: "move:cancel", label: "Cancel", style: "SECONDARY" }),
+    ),
+  ]
+}

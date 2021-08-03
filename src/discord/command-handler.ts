@@ -1,7 +1,7 @@
 import { GuildMember } from "discord.js"
 import { CommandHandlerAction } from "./command-handler-action"
 
-export type CommandHandlerIterator = AsyncIterator<
+export type CommandHandlerIterator = AsyncGenerator<
   CommandHandlerAction,
   void,
   ComponentInteraction | undefined
